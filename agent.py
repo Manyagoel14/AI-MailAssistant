@@ -1,10 +1,30 @@
+import os
+from pathlib import Path
+
 from langchain.agents import create_agent
-from langchain_ollama import ChatOllama
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langchain_groq import ChatGroq
+from dotenv import load_dotenv
+
+ENV_PATH = Path(__file__).resolve().with_name(".env")
+load_dotenv(dotenv_path=ENV_PATH, override=True)
+
 
 def build_agent(tools):
-    model = ChatOllama(model="qwen3:1.7b")
+    api_key = os.getenv("GROQ_API_KEY")
+
+    if not api_key:
+        raise ValueError(
+            f"Missing GROQ_API_KEY. Add GROQ_API_KEY=your_key_here to {ENV_PATH}, "
+            "then restart Streamlit."
+        )
+
+    model = ChatGroq(
+        model="llama-3.1-8b-instant",
+        api_key=api_key,
+        temperature=0,
+    )
     SYSTEM_PROMPT = """
         You are a Gmail assistant.
 

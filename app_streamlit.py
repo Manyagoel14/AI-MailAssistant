@@ -79,23 +79,21 @@ def show_message(message):
         st.markdown(message["content"])
 
 
-if "assistant" not in st.session_state:
-    st.session_state.assistant = init_assistant()
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "pending_interrupt" not in st.session_state:
     st.session_state.pending_interrupt = None
-if "stale_notice_loaded" not in st.session_state:
-    notice = get_stale_unread_notice(st.session_state.assistant["gmail"], days_old=7, max_results=5)
-    if notice:
-        add_message("assistant", notice)
-    st.session_state.stale_notice_loaded = True
 
 
 st.title("Gmail AI Assistant")
 st.caption("Search mail, read messages, detect action items, and save follow-up reminders locally.")
 
 with st.sidebar:
+    if st.button("Reconnect", use_container_width=True):
+        st.session_state.pop("assistant", None)
+        st.session_state.pop("stale_notice_loaded", None)
+        st.rerun()
+
     st.subheader("Quick Actions")
     if st.button("Check stale unread", use_container_width=True):
         response, text, events = run_agent(
@@ -123,6 +121,20 @@ with st.sidebar:
     st.code("Find emails from Internshala from last week")
     st.code("Read mail from google with subject security alert")
     st.code("Remind me to reply to this tomorrow")
+
+
+if "assistant" not in st.session_state:
+    try:
+        st.session_state.assistant = init_assistant()
+    except ValueError as error:
+        st.error(str(error))
+        st.stop()
+
+if "stale_notice_loaded" not in st.session_state:
+    notice = get_stale_unread_notice(st.session_state.assistant["gmail"], days_old=7, max_results=5)
+    if notice:
+        add_message("assistant", notice)
+    st.session_state.stale_notice_loaded = True
 
 
 for message in st.session_state.messages:
