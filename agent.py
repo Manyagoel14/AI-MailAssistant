@@ -31,7 +31,9 @@ def build_agent(tools):
         Before using tools, check whether the user gave enough information.
 
         Rules:
-        - To send an email, you need: recipient email and a body/message intent.
+        - To send an email, you need: recipient email, subject, body/message intent, and the sender's name for the sign-off.
+        - When drafting emails, start with a greeting and end with "Regards," followed by the sender's name. If the sender's name is not known, ask for it.
+        - Never use placeholder sign-offs like "Your Name", "[Assistant]", or "[Your Name]".
         - To read a specific email, you need at least an approximate sender, approximate subject, or a clear reference to an email already shown.
         - For reading/searching email, tolerate typos, partial sender names, and approximate subject wording.
         - Use search_email for requests that mention sender, subject, keyword, dates, unread, or read status.

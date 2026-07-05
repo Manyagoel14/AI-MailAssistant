@@ -318,10 +318,33 @@ def build_gmail_tools(gmail):
             f"Search query: {query or '(recent mail)'}\n\n"
             + "\n\n".join(format_email_preview(email) for email in emails)
         )
+    def format_outgoing_email_body(body: str, sender_name: str) -> str:
+        body = body.strip()
+        sender_name = sender_name.strip()
+
+        if not body.lower().startswith(("hi", "hello", "dear")):
+            body = f"Hi,\n\n{body}"
+
+        lines = body.splitlines()
+        while lines and not lines[-1].strip():
+            lines.pop()
+
+        signoff_index = None
+        for index in range(len(lines) - 1, -1, -1):
+            if re.match(r"^(regards|best regards|thanks|thank you|sincerely),?$", lines[index].strip(), re.I):
+                signoff_index = index
+                break
+
+        if signoff_index is None:
+            body = f"{body}\n\nRegards,\n{sender_name}"
+        else:
+            body = "\n".join([*lines[:signoff_index], "", "Regards,", sender_name]).strip()
+
+        return body
 
     @tool
-    def send_email(to: str = "", subject: str = "", body: str = "") -> str:
-        """Send an email. Requires recipient email, subject, and body."""
+    def send_email(to: str = "", subject: str = "", body: str = "", sender_name: str = "") -> str:
+        """Send an email. Requires recipient email, subject, body, and sender name for the sign-off."""
 
         missing = []
 
@@ -331,6 +354,8 @@ def build_gmail_tools(gmail):
             missing.append("subject")
         if not body.strip():
             missing.append("email body")
+        if not sender_name.strip():
+            missing.append("sender name")
 
         if missing:
             return (
@@ -338,6 +363,7 @@ def build_gmail_tools(gmail):
                 f"Ask the user for: {', '.join(missing)}."
             )
 
+        body = format_outgoing_email_body(body, sender_name)
         return gmail.send_email(to=to, subject=subject, body=body)
     
     @tool

@@ -83,6 +83,40 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "pending_interrupt" not in st.session_state:
     st.session_state.pending_interrupt = None
+if "pending_draft_id" not in st.session_state:
+    st.session_state.pending_draft_id = None
+
+
+def get_pending_args(request):
+    args = request.get("args", {})
+    return {
+        "to": args.get("to", ""),
+        "subject": args.get("subject", ""),
+        "body": args.get("body", ""),
+        "sender_name": args.get("sender_name", ""),
+    }
+
+
+def load_pending_draft(request):
+    draft_id = f"{request.get('name', '')}:{request.get('description', '')}"
+    if st.session_state.pending_draft_id == draft_id:
+        return
+
+    args = get_pending_args(request)
+    st.session_state.pending_draft_id = draft_id
+    st.session_state.draft_to = args["to"]
+    st.session_state.draft_subject = args["subject"]
+    st.session_state.draft_body = args["body"]
+    st.session_state.draft_sender_name = args["sender_name"]
+
+
+def current_draft_args():
+    return {
+        "to": st.session_state.get("draft_to", "").strip(),
+        "subject": st.session_state.get("draft_subject", "").strip(),
+        "body": st.session_state.get("draft_body", "").strip(),
+        "sender_name": st.session_state.get("draft_sender_name", "").strip(),
+    }
 
 
 st.title("Gmail AI Assistant")
@@ -143,24 +177,68 @@ for message in st.session_state.messages:
 
 if st.session_state.pending_interrupt:
     request = st.session_state.pending_interrupt
+    load_pending_draft(request)
+
     with st.chat_message("assistant"):
         st.warning("Approval needed before sending email.")
-        st.json(request)
-        col1, col2 = st.columns(2)
+
+        st.text_input("To", key="draft_to")
+        st.text_input("Subject", key="draft_subject")
+        st.text_input("Your name for sign-off", key="draft_sender_name")
+        st.text_area(
+            "Email body",
+            key="draft_body",
+            height=220,
+        )
+
+        col1, col2, col3 = st.columns(3)
 
         with col1:
             approve = st.button("Approve Send", type="primary", use_container_width=True)
         with col2:
             reject = st.button("Reject", use_container_width=True)
+        with col3:
+            save_edit = st.button("Save Draft", use_container_width=True)
+
+        edited_args = current_draft_args()
 
         if approve or reject:
-            decision = "approve" if approve else "reject"
+            if approve:
+                missing = [
+                    label
+                    for key, label in [
+                        ("to", "recipient email"),
+                        ("subject", "subject"),
+                        ("body", "email body"),
+                        ("sender_name", "your name for sign-off"),
+                    ]
+                    if not edited_args[key]
+                ]
+
+                if missing:
+                    st.error(f"Please add: {', '.join(missing)}.")
+                    st.stop()
+
+                decision = {
+                    "type": "edit",
+                    "edited_action": {
+                        "name": request["name"],
+                        "args": edited_args,
+                    },
+                }
+            else:
+                decision = {"type": "reject"}
+
             response, text, events = run_agent(
-                Command(resume={"decisions": [{"type": decision}]})
+                Command(resume={"decisions": [decision]})
             )
             st.session_state.pending_interrupt = None
-            add_message("assistant", text or f"Send {decision}d.", events)
+            st.session_state.pending_draft_id = None
+            add_message("assistant", text or ("Email sent." if approve else "Send rejected."), events)
             st.rerun()
+        elif save_edit:
+            st.session_state.pending_interrupt["args"] = edited_args
+            st.toast("Draft updated. Review it, then approve when ready.")
 
 
 prompt = st.chat_input("Ask about your Gmail...")
